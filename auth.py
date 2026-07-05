@@ -1,4 +1,5 @@
 import secrets
+import os
 from passlib.context import CryptContext
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
@@ -7,7 +8,7 @@ from fastapi import Depends, HTTPException
 
 pwd_context = CryptContext(schemes=["bcrypt"])
 
-SECRET_KEY = secrets.token_hex(32)
+SECRET_KEY = os.environ.get("SECRET_KEY")
 ALGORITHM = "HS256"
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
