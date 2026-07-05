@@ -1,87 +1,127 @@
 # URL Shortener
-A link shortening API built with FastAPI and SQLModel.
- 
-> Built as a learning project to practice REST API design, database modeling, and Python backend development.
- 
----
- 
+
+A URL shortening API built with FastAPI, SQLModel, and SQLite.
+
+This project includes user registration and JWT-based authentication so each user can manage their own links. The database is created automatically on startup as database.db.
+
 ## Tech Stack
-- **FastAPI** — API framework
-- **SQLModel** — ORM and database modeling
-- **SQLite** — local database
-- **Python 3.13**
----
- 
+
+- FastAPI for the API layer
+- SQLModel and SQLAlchemy for ORM and database access
+- SQLite for local storage
+- Python 3.13
+
 ## Getting Started
- 
+
 ### 1. Clone the repository
+
 ```bash
 git clone https://github.com/prajadai/URL-Shortener.git
-cd url-shortener
+cd URL-Shortener
 ```
- 
-### 2. Create and activate virtual environment
+
+### 2. Create and activate a virtual environment
+
 ```bash
-uv venv my_env
-my_env\Scripts\activate  # Windows
-source my_env/bin/activate  # Mac/Linux
+python -m venv my_env
+my_env\Scripts\activate
 ```
- 
+
+On macOS or Linux:
+
+```bash
+source my_env/bin/activate
+```
+
 ### 3. Install dependencies
+
 ```bash
-uv pip install -r requirements.txt
+pip install -r requirements.txt
 ```
- 
-### 4. Run the development server
+
+### 4. Run the server
+
 ```bash
-uv run fastapi dev main.py --reload
+uvicorn main:app --reload
 ```
- 
-The API will be available at `http://localhost:8000`  
-Interactive docs at `http://localhost:8000/docs`
- 
----
- 
+
+The API will be available at http://localhost:8000.
+Interactive docs are available at http://localhost:8000/docs.
+
+## Authentication Flow
+
+1. Register a user with `POST /register`.
+2. Log in with `POST /login` using form data.
+3. Include `Authorization: Bearer <token>` on protected requests.
+
 ## API Endpoints
- 
-### `POST /shorten_url`
-Takes a long URL and returns a shortened version.
- 
-**Request body:**
+
+### Public
+
+`POST /register`
+
+Creates a new user.
+
+Request body:
+
+```json
+{
+  "username": "alice",
+  "password": "secret123"
+}
+```
+
+`POST /login`
+
+Returns a bearer token for the supplied username and password.
+
+`GET /{short_code}`
+
+Redirects to the original URL and records a click.
+
+### Protected
+
+`POST /shorten_url`
+
+Creates a shortened link for the signed-in user.
+
+Request body:
+
 ```json
 {
   "original_url": "https://instagram.com"
 }
 ```
- 
-**Response:**
-```json
-{
-  "id": 1,
-  "original_url": "https://instagram.com",
-  "short_code": "Kd9mXz",
-  "created_at": "2024-01-01T00:00:00"
-}
-```
- 
----
- 
-### `GET /{short_code}`
-Redirects the user to the original URL.
- 
-**Example:** visiting `http://localhost:8000/Kd9mXz` redirects to `https://instagram.com`
- 
-Returns `404` if the short code does not exist.
- 
----
- 
+
+`GET /links`
+
+Lists the current user's links.
+
+`GET /{short_code}/stats`
+
+Returns click statistics for one of the current user's links.
+
+`PATCH /{short_code}`
+
+Updates the original URL for one of the current user's links.
+
+`DELETE /{short_code}`
+
+Deletes one of the current user's links and its click records.
+
+## Notes
+
+- The database is created automatically on startup as `database.db`.
+- Short URLs are normalized to include `https://` when the scheme is omitted.
+
 ## Project Structure
-```
-url-shortener/
-├── main.py          # FastAPI app and endpoints
-├── models.py        # SQLModel database models
-├── database.py      # Database connection and setup
+
+```text
+URL Shortener/
+├── auth.py
+├── database.py
+├── main.py
+├── models.py
 ├── requirements.txt
-├── .gitignore
 └── README.md
 ```
