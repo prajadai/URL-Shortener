@@ -2,7 +2,7 @@ import secrets
 from sqlmodel import Session, select
 from fastapi import FastAPI, HTTPException, Depends
 from database import create_db_and_tables, engine
-from models import Link, LinkCreate, LinkPublic, Click, User, UserCreate, UserBase
+from models import Link, LinkCreate, LinkPublic, Click, User, UserCreate, LinkUpdate
 from auth import pwd_context, create_access_token, get_current_user
 from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordRequestForm
@@ -101,3 +101,28 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
         return {"access_token": token, "token_type": "bearer"}
         
 
+@app.delete('/{short_code}')
+def delete_link(short_code: str, existing_user_id : int = Depends(get_user_by_username)):
+    with Session(engine) as session:
+        link = session.exec(select(Link).where((Link.short_code == short_code) & (Link.user_id==existing_user_id))).first()
+        if not link:
+            raise HTTPException(status_code=404, detail="Code not found.")
+        clicks = session.exec(select(Click).where(Click.link_id==link.id)).all()
+        for click in clicks:
+            session.delete(click)
+        session.delete(link)
+        session.commit()
+        return {"message":f"Successsfully deleted the link: {short_code} ."}
+    
+@app.patch('/{short_code}', response_model=LinkPublic)
+def update_link(short_code: str, update_data: LinkUpdate , existing_user_id: int = Depends(get_user_by_username)):
+    with Session(engine) as session:
+        link = session.exec(select(Link).where((Link.short_code == short_code) & (Link.user_id==existing_user_id))).first()
+        if not link:
+            raise HTTPException(status_code=404, detail="Code not found.")
+        if not update_data.original_url.startswith("http"):
+            update_data.original_url = "https://" + update_data.original_url
+        link.original_url = update_data.original_url
+        session.commit()
+        session.refresh(link)
+        return link
