@@ -23,6 +23,13 @@ def authenticate_user(username: str, password: str):
             return False
         return user
 
+def get_user_by_username(current_user : str = Depends(get_current_user)):
+    with Session(engine) as session:
+        existing_user = session.exec(select(User).where(User.username == current_user)).first()
+        if not existing_user:
+            raise HTTPException(status_code=401, detail="Authentication failed.")
+        return existing_user.id
+
 
 @app.on_event("startup")
 def On_startup():
@@ -30,12 +37,12 @@ def On_startup():
 
 
 @app.post('/shorten_url', response_model=LinkPublic)
-def create_shorten_url(link : LinkCreate):
+def create_shorten_url(link : LinkCreate, existing_user_id : int = Depends(get_user_by_username)):
     short_code = secrets.token_urlsafe(6)
     if not link.original_url.startswith("http"):
         link.original_url = "https://" + link.original_url
     with Session(engine) as session:
-        db_url = Link(short_code=short_code, **link.model_dump())
+        db_url = Link(short_code=short_code, **link.model_dump(), user_id=existing_user_id)
         session.add(db_url)
         session.commit()
         session.refresh(db_url)
@@ -43,18 +50,16 @@ def create_shorten_url(link : LinkCreate):
     
 
 @app.get('/links', response_model=list[LinkPublic])
-def get_all_links(current_user: str = Depends(get_current_user)):
+def get_all_links(existing_user_id : int = Depends(get_user_by_username)):
     with Session(engine) as session:
-        link = session.exec(select(Link)).all()
-        if link is None:
-            raise HTTPException(status_code=404, detail="No links found.")
+        link = session.exec(select(Link).where(Link.user_id == existing_user_id)).all()
         return link
     
 
 @app.get('/{short_code}/stats')
-def get_stats(short_code: str):
+def get_stats(short_code: str, existing_user_id : int = Depends(get_user_by_username)):
     with Session(engine) as session:
-        link = session.exec(select(Link).where(Link.short_code == short_code)).first()
+        link = session.exec(select(Link).where((Link.short_code == short_code) & (Link.user_id==existing_user_id))).first()
         if not link:
             raise HTTPException(status_code=404, detail="Code not found.")
         stat = len(list(session.exec(select(Click).where(Click.link_id == link.id))))
