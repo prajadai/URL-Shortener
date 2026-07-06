@@ -1,68 +1,108 @@
 # URL Shortener
 
-A URL shortening API built with FastAPI, SQLModel, and SQLite.
+A URL shortener built with FastAPI, SQLModel, and SQLite, with a browser UI for auth and link management.
 
-This project includes user registration and JWT-based authentication so each user can manage their own links. The database is created automatically on startup as database.db.
+## Features
+
+- User registration and login with JWT bearer tokens
+- Create short links per user account
+- List links with pagination (`limit`, `offset`)
+- Update and delete only your own links
+- Track click counts for each short code
+- Browser UI served from FastAPI (`/home` and `/app`)
+- Rate limit on link creation (`5/minute`)
 
 ## Tech Stack
 
-- FastAPI for the API layer
-- SQLModel and SQLAlchemy for ORM and database access
-- SQLite for local storage
+- FastAPI
+- SQLModel / SQLAlchemy
+- SQLite (`database.db`)
+- HTML, CSS, JavaScript (vanilla)
 - Python 3.13
 
-## Getting Started
+## Project Structure
 
-### 1. Clone the repository
-
-```bash
-git clone https://github.com/prajadai/URL-Shortener.git
-cd URL-Shortener
+```text
+URL Shortener/
+|- auth.py
+|- database.py
+|- main.py
+|- models.py
+|- requirements.txt
+|- static/
+|  |- app.js
+|  `- styles.css
+|- templates/
+|  `- index.html
+`- README.md
 ```
 
-### 2. Create and activate a virtual environment
+## Setup
+
+### 1. Create and activate virtual environment
+
+Windows (PowerShell):
 
 ```bash
 python -m venv my_env
-my_env\Scripts\activate
+.\my_env\Scripts\activate
 ```
 
-On macOS or Linux:
+macOS/Linux:
 
 ```bash
+python -m venv my_env
 source my_env/bin/activate
 ```
 
-### 3. Install dependencies
+### 2. Install dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4. Run the server
+### 3. Configure environment variables
 
-```bash
-uvicorn main:app --reload
+Create a `.env` file in the project root:
+
+```env
+SECRET_KEY=replace-with-a-long-random-secret
 ```
 
-The API will be available at http://localhost:8000.
-Interactive docs are available at http://localhost:8000/docs.
+If `SECRET_KEY` is missing, the app uses a dev-only fallback secret.
 
-## Authentication Flow
+### 4. Run the app
 
-1. Register a user with `POST /register`.
-2. Log in with `POST /login` using form data.
-3. Include `Authorization: Bearer <token>` on protected requests.
+```bash
+python -m uvicorn main:app --reload
+```
+
+Open:
+
+- UI: http://localhost:8000/home
+- UI (alt): http://localhost:8000/app
+- Docs: http://localhost:8000/docs
+
+## Auth Flow
+
+1. Register with `POST /register`
+2. Login with `POST /login` (form fields: `username`, `password`)
+3. Use `Authorization: Bearer <token>` for protected endpoints
+
+The browser UI stores and sends the token automatically after login.
 
 ## API Endpoints
 
 ### Public
 
-`POST /register`
+- `GET /` -> redirects to `/home`
+- `GET /home` -> serves UI
+- `GET /app` -> serves same UI
+- `POST /register` -> create user
+- `POST /login` -> return JWT token
+- `GET /{short_code}` -> redirect to original URL and record click
 
-Creates a new user.
-
-Request body:
+Example register body:
 
 ```json
 {
@@ -71,21 +111,15 @@ Request body:
 }
 ```
 
-`POST /login`
-
-Returns a bearer token for the supplied username and password.
-
-`GET /{short_code}`
-
-Redirects to the original URL and records a click.
-
 ### Protected
 
-`POST /shorten_url`
+- `POST /shorten_url` -> create short URL
+- `GET /links` -> list your links (`?limit=10&offset=0`)
+- `GET /{short_code}/stats` -> clicks for your short URL
+- `PATCH /{short_code}` -> update original URL
+- `DELETE /{short_code}` -> delete short URL and its clicks
 
-Creates a shortened link for the signed-in user.
-
-Request body:
+Example shorten body:
 
 ```json
 {
@@ -93,35 +127,8 @@ Request body:
 }
 ```
 
-`GET /links`
-
-Lists the current user's links.
-
-`GET /{short_code}/stats`
-
-Returns click statistics for one of the current user's links.
-
-`PATCH /{short_code}`
-
-Updates the original URL for one of the current user's links.
-
-`DELETE /{short_code}`
-
-Deletes one of the current user's links and its click records.
-
 ## Notes
 
-- The database is created automatically on startup as `database.db`.
-- Short URLs are normalized to include `https://` when the scheme is omitted.
-
-## Project Structure
-
-```text
-URL Shortener/
-├── auth.py
-├── database.py
-├── main.py
-├── models.py
-├── requirements.txt
-└── README.md
-```
+- Database tables are created on startup.
+- If `original_url` has no scheme, `https://` is automatically added.
+- Short-code redirect route is intentionally defined after explicit routes.

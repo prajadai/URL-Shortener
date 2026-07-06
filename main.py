@@ -1,14 +1,47 @@
 import secrets
 from sqlmodel import Session, select
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Request
 from database import create_db_and_tables, engine
-from models import Link, LinkCreate, LinkPublic, Click, User, UserCreate, LinkUpdate
+from models import Link, LinkCreate, LinkPublic, Click, User, UserCreate, LinkUpdate, PaginatedLinks
 from auth import pwd_context, create_access_token, get_current_user
 from fastapi.responses import RedirectResponse
+from fastapi.responses import HTMLResponse
 from fastapi.security import OAuth2PasswordRequestForm
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from jose import jwt, JWTError
+from auth import SECRET_KEY, ALGORITHM
 
+def get_user_id_key(request: Request):
+    try:
+        auth_header = request.headers.get("Authorization")
+        if not auth_header:
+            return get_remote_address(request)  # fallback: no token, limit by IP
 
+        token = auth_header.split(" ")[1]  # "Bearer <token>" -> take the token part
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username = payload.get("sub")
+        if not username:
+            return get_remote_address(request)
+
+        with Session(engine) as session:
+            existing_user = session.exec(select(User).where(User.username == username)).first()
+            if not existing_user:
+                return get_remote_address(request)
+            return str(existing_user.id)  # key must be a string
+
+    except (JWTError, IndexError):
+        return get_remote_address(request)  # any decoding failure -> fallback to IP
+
+limiter = Limiter(key_func=get_user_id_key)
 app = FastAPI()
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.mount("/static", StaticFiles(directory="static"), name="static")
+templates = Jinja2Templates(directory="templates")
 
 
 def verify_password(plain_password, hashed_password):
@@ -36,8 +69,24 @@ def On_startup():
     create_db_and_tables()
 
 
+@app.get("/", include_in_schema=False)
+def root_redirect():
+    return RedirectResponse(url="/home", status_code=307)
+
+
+@app.get("/home", response_class=HTMLResponse)
+def home(request: Request):
+    return templates.TemplateResponse(request, "index.html", {})
+
+
+@app.get("/app", response_class=HTMLResponse)
+def app_page(request: Request):
+    return templates.TemplateResponse(request, "index.html", {})
+
+
 @app.post('/shorten_url', response_model=LinkPublic)
-def create_shorten_url(link : LinkCreate, existing_user_id : int = Depends(get_user_by_username)):
+@limiter.limit('5/minute')
+def create_shorten_url(request: Request, link : LinkCreate, existing_user_id : int = Depends(get_user_by_username)):
     short_code = secrets.token_urlsafe(6)
     if not link.original_url.startswith("http"):
         link.original_url = "https://" + link.original_url
@@ -49,11 +98,12 @@ def create_shorten_url(link : LinkCreate, existing_user_id : int = Depends(get_u
         return db_url
     
 
-@app.get('/links', response_model=list[LinkPublic])
-def get_all_links(existing_user_id : int = Depends(get_user_by_username)):
+@app.get('/links', response_model=PaginatedLinks)
+def get_all_links(limit: int = 10, offset : int = 0, existing_user_id : int = Depends(get_user_by_username)):
     with Session(engine) as session:
-        link = session.exec(select(Link).where(Link.user_id == existing_user_id)).all()
-        return link
+        link = session.exec(select(Link).where(Link.user_id == existing_user_id).offset(offset).limit(limit)).all()
+        total_count = len(session.exec(select(Link).where(Link.user_id == existing_user_id)).all())
+        return PaginatedLinks(total=total_count, limit=limit, offset=offset, results=link)
     
 
 @app.get('/{short_code}/stats')
@@ -68,17 +118,6 @@ def get_stats(short_code: str, existing_user_id : int = Depends(get_user_by_user
         return {"clicks": stat}
     
 
-@app.get('/{short_code}')
-def view_shorten_url(short_code: str):
-    with Session(engine) as session:
-        link = session.exec(select(Link).where(Link.short_code == short_code)).first()
-        if not link:
-            raise HTTPException(status_code=404, detail="Code not found.")
-        db_click = Click(link_id=link.id)
-        session.add(db_click)
-        session.commit()
-        return RedirectResponse(url=link.original_url)
-    
 @app.post('/register')
 def register_user(user: UserCreate):
     with Session(engine) as session:
@@ -126,3 +165,15 @@ def update_link(short_code: str, update_data: LinkUpdate , existing_user_id: int
         session.commit()
         session.refresh(link)
         return link
+
+
+@app.get('/{short_code}')
+def view_shorten_url(short_code: str):
+    with Session(engine) as session:
+        link = session.exec(select(Link).where(Link.short_code == short_code)).first()
+        if not link:
+            raise HTTPException(status_code=404, detail="Code not found.")
+        db_click = Click(link_id=link.id)
+        session.add(db_click)
+        session.commit()
+        return RedirectResponse(url=link.original_url)

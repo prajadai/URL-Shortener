@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>URL Shortener</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@500;700;800&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <div class="backdrop"></div>
+
+  <header class="hero">
+    <p class="eyebrow">FAST, CLEAN, TRACKED</p>
+    <h1>URL Shortener</h1>
+    <p class="subtitle">Build and manage short links with a sharp UI, realtime stats, and account-level privacy.</p>
+  </header>
+
+  <main class="layout">
+    <section class="card auth-card">
+      <h2>Account</h2>
+      <p class="muted">Register once, then sign in to create and manage your short links.</p>
+
+      <div class="tabs" role="tablist" aria-label="Authentication tabs">
+        <button id="registerTab" class="tab active" role="tab" type="button">Register</button>
+        <button id="loginTab" class="tab" role="tab" type="button">Login</button>
+      </div>
+
+      <form id="registerForm" class="form" autocomplete="off">
+        <label for="registerUsername">Username</label>
+        <input id="registerUsername" name="username" required />
+
+        <label for="registerPassword">Password</label>
+        <input id="registerPassword" type="password" name="password" required minlength="6" />
+
+        <button type="submit" class="btn">Create Account</button>
+      </form>
+
+      <form id="loginForm" class="form hidden" autocomplete="off">
+        <label for="loginUsername">Username</label>
+        <input id="loginUsername" name="username" required />
+
+        <label for="loginPassword">Password</label>
+        <input id="loginPassword" type="password" name="password" required />
+
+        <button type="submit" class="btn">Sign In</button>
+      </form>
+
+      <div class="session-row">
+        <span id="sessionState" class="session-state">Not signed in</span>
+        <button id="logoutBtn" type="button" class="btn ghost">Logout</button>
+      </div>
+    </section>
+
+    <section class="card work-card">
+      <h2>Your Links</h2>
+      <p class="muted">Create, update, inspect clicks, and delete links from one place.</p>
+
+      <form id="createLinkForm" class="form-inline">
+        <input id="urlInput" type="text" placeholder="facebook.com or https://facebook.com" required />
+        <button type="submit" class="btn">Shorten</button>
+      </form>
+
+      <div id="alert" class="alert hidden"></div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Short URL</th>
+              <th>Original URL</th>
+              <th>Clicks</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="linksTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <template id="rowTemplate">
+    <tr>
+      <td class="short-col"><a class="short-link" target="_blank" rel="noreferrer"></a></td>
+      <td class="original-col"></td>
+      <td class="click-col">-</td>
+      <td class="actions-col">
+        <button type="button" class="btn small stats-btn">Stats</button>
+        <button type="button" class="btn small ghost edit-btn">Edit</button>
+        <button type="button" class="btn small danger delete-btn">Delete</button>
+      </td>
+    </tr>
+  </template>
+
+  <script src="/static/app.js" defer></script>
+</body>
+</html>

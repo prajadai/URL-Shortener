@@ -38,3 +38,9 @@ class UserCreate(UserBase):
 class User(UserBase, table=True):
     id : int | None = Field(default = None, primary_key=True)
     hashed_password : str
+
+class PaginatedLinks(SQLModel):
+    total: int
+    limit: int
+    offset: int
+    results: list[LinkPublic]
